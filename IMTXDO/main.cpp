@@ -8,6 +8,7 @@
 #include <fstream>
 #include <random>
 #include <functional>
+#include <memory>
 
 // repeat input
 // merge two data
@@ -22,18 +23,13 @@ struct NODE;
 struct SUBNODE
 {
     int *htp;
-    NODE *child;
+    std::shared_ptr<NODE> child;
     double boundary;
 
-    SUBNODE(int *htp_, NODE *child_, double boundary_)
-        : htp(htp_), child(child_), boundary(boundary_)
+    SUBNODE(int *htp_, std::shared_ptr<NODE> child_, double boundary_)
+        : htp(htp_), boundary(boundary_)
     {
-    }
-
-    ~SUBNODE()
-    {
-        if (child)
-            delete child;
+        child = child_;
     }
 };
 
@@ -61,11 +57,11 @@ struct NODE
         {
             if (left_depth > 0 && it != prev(boundaries.end()))
             {
-                subnodes.emplace_back((int *)NULL, new NODE, *it);
+                subnodes.emplace_back((int *)NULL, std::make_shared<NODE>(), *it);
                 subnodes.back().child->random_boundaries(UBLB, UBUB, numUB, left_depth - 1);
             }
             else
-                subnodes.emplace_back((int *)NULL, (NODE *)NULL, *it);
+                subnodes.emplace_back((int *)NULL, std::shared_ptr<NODE>(NULL), *it);
         }
     }
 
@@ -140,44 +136,6 @@ struct NODE
         }
     };
 
-    std::deque<SUBNODE> get_best_subnodes(std::deque<int *> &anchors, int h, int t, int &total_node, double &total_split_length)
-    {
-        std::deque<SUBNODE> subnodes;
-        if (h == t)
-        {
-            total_node = 0;
-            total_split_length = 0;
-            return subnodes;
-        }
-        else
-        {
-            total_node = maxint;
-            total_split_length = -inf;
-            for (int m = t - 1; m != h - 1; --m)
-            {
-                int total_node_left;
-                double total_split_length_left;
-                std::deque<SUBNODE> subnodes_left = get_best_subnodes(anchors, h, m, total_node_left, total_split_length_left);
-                subnodes_left.emplace_back(anchors[m], new NODE(anchors[m], anchors[t], depth + 1), (std::abs(get_val(*anchors[m])) + std::abs(get_val(*(anchors[m] - 1)))) / 2);
-                if (subnodes_left.back().child->legal)
-                {
-                    if (total_node_left != maxint)
-                        total_node_left += subnodes_left.back().child->total_node;
-                    total_split_length_left += subnodes_left.back().child->total_split_length;
-                }
-                else
-                    break;
-                if (total_node_left < total_node || (total_node_left == total_node && total_split_length_left > total_split_length))
-                {
-                    total_node = total_node_left;
-                    total_split_length = total_split_length_left;
-                    subnodes.swap(subnodes_left);
-                }
-            }
-        }
-        return subnodes;
-    }
-
     NODE()
     {
     }
@@ -205,10 +163,7 @@ struct NODE
                 }
             }
             else if (get_val(idxs[i - 1]) > 0 && get_val(idxs[i]) < 0)
-            {
                 end = &idxs[i];
-                break;
-            }
         if (!start)
         {
             total_split_length = 0;
@@ -221,21 +176,58 @@ struct NODE
                 if (get_val(*(pidx - 1)) != get_val(*pidx))
                     anchors.push_back(pidx);
             anchors.push_back(end);
+            std::deque<double> boundaries;
+            for (int *pidx : anchors)
+                boundaries.push_back(std::abs(get_val(*(pidx - 1))) + std::abs(get_val(*pidx)) / 2);
 
-            subnodes = get_best_subnodes(anchors, 0, anchors.size() - 1, total_node, total_split_length);
-            if (total_node == maxint)
+            std::deque<std::deque<SUBNODE>> DP_subnodess;
+            for (int i = 0; i < anchors.size() - 1; ++i)
+            {
+                DP_subnodess.emplace_back();
+                for (int j = i + 1; j < anchors.size(); ++j)
+                {
+                    DP_subnodess.back().emplace_back(anchors[i], std::make_shared<NODE>(anchors[i], anchors[j], depth + 1), boundaries[i]);
+                    if (!DP_subnodess.back().back().child->legal)
+                        break;
+                }
+            }
+
+            std::vector<std::pair<int, double>> best_total_node_split_length = {{0, 0.0}};
+            std::vector<int> best_mid = {0};
+            for (int j = 1; j < anchors.size(); ++j)
+            {
+                best_total_node_split_length.emplace_back(maxint, -inf);
+                for (int i = j - 1; i >= 0; --i)
+                {
+                    if (!DP_subnodess[i][j-i-1].child->legal)
+                        break;
+                    if (best_total_node_split_length[i].first == maxint)
+                        continue;
+                    int total_node_new = best_total_node_split_length[i].first + DP_subnodess[i][j-i-1].child->total_node;
+                    int total_split_length_new = best_total_node_split_length[i].second + DP_subnodess[i][j-i-1].child->total_split_length;
+                    if (total_node_new < best_total_node_split_length[j].first || (total_node_new == best_total_node_split_length[j].first && total_split_length_new > best_total_node_split_length[j].second))
+                    {
+                        best_total_node_split_length[j].first = total_node_new;
+                        best_total_node_split_length[j].second = total_split_length_new;
+                        best_mid[j] = i;
+                    }
+                }
+            }
+            if (best_total_node_split_length.back().first == maxint)
             {
                 legal = false;
                 return;
             }
             else
             {
+                total_node = best_total_node_split_length.back().first + 1;
+                for (int j = anchors.size() - 1; j != 0; j = best_mid[j])
+                    subnodes.push_front(DP_subnodess[best_mid[j]][j-best_mid[j]-1]);
                 double val_ll = std::abs(get_val(*(anchors.front() - 1)));
                 double val_l = std::abs(get_val(*anchors.front()));
                 double val_u = std::abs(get_val(*(anchors.back() - 1)));
                 double val_uu = std::abs(get_val(*anchors.back()));
-                subnodes.emplace_back(anchors.back(), (NODE *)NULL, (val_u + val_uu) / 2);
-                ++total_node;
+                subnodes.emplace_back(anchors.back(), std::shared_ptr<NODE>(NULL), (val_u + val_uu) / 2);
                 total_split_length += (val_l - val_ll) + (val_uu - val_u);
             }
         }
@@ -252,7 +244,7 @@ int main()
         std::ofstream fout("raat");
         std::deque<int> path = {0};
         raat.list_boundaries(path, fout);
-        for (int i = 0; i < 50; ++i)
+        for (int i = 0; i < 400; ++i)
         {
             NODE::inputss.emplace_back();
             raat.generate_inputs(1);
