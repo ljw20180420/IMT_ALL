@@ -2,20 +2,23 @@
 #include <climits>
 #include <cmath>
 #include <tuple>
+#include <vector>
+#include <algorithm>
 
-enum Direction
+enum DIRECTION
 {
-    n,
-    up,
-    down,
-    left,
-    right,
-    upleft,
-    upright,
-    downleft,
-    downright
+    five = 5,
+    up = 8,
+    down = 2,
+    left = 4,
+    right = 6,
+    upleft = 7,
+    upright = 9,
+    downleft = 1,
+    downright = 3
 };
-enum Button
+
+enum BUTTON
 {
     n = 0,
     a = 8,
@@ -35,232 +38,230 @@ enum Button
     abcd = 15
 };
 
-struct Skill
+struct SKILL
 {
-    std::deque<Direction> directions;
-    Button button;
+    static int chain_inter;
+    std::deque<DIRECTION> directions;
+    BUTTON button;
     bool charge;
-};
-
-struct Combo
-{
-    Skill skill;
-    int happen;
-    std::deque<int> hits;
-    std::deque<int> damages;
-};
-
-struct Show
-{
-    Direction direction;
-    Button button;
-    int duration;
     int hit;
     int damage;
 };
 
-struct Analyzer
+int SKILL::chain_inter;
+
+struct INFORCE
 {
-    std::deque<Show> shows;
-    std::deque<Combo> combos;
+    static std::deque<SKILL> skills;
+    static std::deque<int> combo_acum_hits, combo_acum_damages;
+    double start;
+    double end;
+    std::deque<int> types;
 
-    void extract(int thres, int fail_UB)
+    static void asign_skills(std::deque<SKILL> &skills_)
     {
-        std::deque<std::deque<double>> valss;
-        for (int i = 0; i < shows.size();)
+        skills = skills_;
+        combo_acum_hits.resize(1, skills[0].hit);
+        combo_acum_damages.resize(1, skills[0].damage);
+        for (int i = 1; i < skills.size(); ++i)
         {
-            std::deque<double> vals;
-            int val, valp;
-            for (int j = 0, k, ii, happen_best, ed; j < combos.size() && i < shows.size(); ++j)
-            {
-                for (k = 0; k < combos[j].hits.size(); ++k, ++i)
-                {
-                    for (; i < shows.size(); ++i)
-                    {
-                        if (j == 0 && k == 0)
-                        {
-                            if (combos[0].hits[0] == shows[i].hit && combos[0].damages[0] == shows[i].damage)
-                                break;
-                        }
-                        else
-                        {
-                            if (shows[i].hit > 0)
-                                break;
-                        }
-                    }
-                    if (k == 0)
-                    {
-                        valp = val;
-                        val = 0;
-                        ii = i;
-                    }
-                    if (i == shows.size() || combos[j].hits[k] != shows[i].hit || combos[j].damages[k] != shows[i].damage)
-                        break;
-                }
-                if (k == combos[j].hits.size())
-                {
-                    std::tie(happen_best, ed) = get_happen_best(ii, combos[j], thres);
-                    if (happen_best == INT_MAX)
-                    {
-                        vals.push_back(-1);
-                        break;
-                    }
-                    else
-                    {
-                        if (j > 0)
-                            vals.push_back(valp - happen_best);
-                        val += happen_best;
-                    }
-                }
-                else
-                {
-                    if (j > 0)
-                    {
-                        if (k > 0)
-                        {
-                            std::tie(happen_best, ed) = get_happen_best(ii, combos[j], thres);
-                            if (happen_best == INT_MAX)
-                                vals.push_back(-1);
-                            else
-                                vals.push_back(valp - happen_best);
-                        }
-                        else
-                        {
-                            int fail_dis = 0, jj;
-                            for (jj = ed + 1; jj < shows.size(); ++jj)
-                            {
-                                fail_dis += shows[jj].duration;
-                                if (shows[jj].button == Button::n || fail_dis > fail_UB)
-                                    break;
-                            }
-                            for (; fail_dis <= fail_UB; ++jj)
-                            {
-                                if (jj + 1 == shows.size() || shows[jj + 1].button != Button::n)
-                                    break;
-                                fail_dis += shows[jj + 1].duration;
-                            }
-                            int st = jj + 1;
-                            if (combos[j].skill.charge)
-                                for (; fail_dis <= fail_UB; ++jj)
-                                {
-                                    if (jj + 1 == shows.size() || shows[jj + 1].button != combos[j].skill.button)
-                                        break;
-                                    fail_dis += shows[jj + 1].duration;
-                                }
-                            if (st == shows.size() || fail_dis > fail_UB || !right_input(st, combos[j], thres))
-                                vals.push_back(-1);
-                            else
-                            {
-                                val = 0;
-                                for (int kk = std::min(ii,jj) + 1; kk <= std::max(ii,jj); ++kk)
-                                    val += shows[kk].duration;
-                                if (ii < jj)
-                                    val = happen_best - 1 + val;
-                                else
-                                    val = happen_best - 1 - val;
-                                if (!combos[j].skill.charge)
-                                    ++val;
-                                if (val <= fail_UB)
-                                    vals.push_back(val);
-                                else
-                                    vals.push_back(-1);
-                            }
-                        }
-                    }
-                    break;
-                }
-            }
-            if (vals.size() > 1 || !vals.empty() && vals.back() >= 0)
-                valss.push_back(vals);
+            combo_acum_hits.push_back(combo_acum_hits[i-1] + skills[i].hit);
+            combo_acum_damages.push_back(combo_acum_damages[i-1] + skills[i].damage);
         }
     }
 
-    std::pair<int, int> get_happen_best(int &ii, Combo &combo, int thres)
+    double get_happen(int type)
     {
-        int happen_best = INT_MAX, current_idx = 0, eff, ed;
-        while (ii >= 0)
-        {
-            std::tie(eff, ed) = find_next(ii, current_idx, combo, thres);
-            if (eff >= 0 && std::abs(happen_best - combo.happen) > std::abs(eff - combo.happen))
-                happen_best = eff;
-        }
-        return std::make_pair(happen_best, ed);
-    }
-
-    std::pair<int, int> find_next(int &ii, int &current_idx, Combo &combo, int thres)
-    {
-        int button_UB = 3 * combo.happen;
-        if (combo.skill.charge)
-            while (shows[ii].button != Button::n)
-                current_idx += shows[ii--].duration;
-        int st = -1, ed = -1, ipt, eff;
-        for (; st < 0; --ii)
-        {
-            if (ed < 0)
-            {
-                if (current_idx > button_UB)
-                    break;
-                if (shows[ii].button == combo.skill.button)
-                {
-                    ed = ii;
-                    eff = current_idx;
-                }
-            }
-            current_idx += shows[ii].duration;
-            if (ed >= 0)
-            {
-                if (ii == 0 || shows[ii - 1].button != combo.skill.button)
-                {
-                    st = ii;
-                    ipt = current_idx;
-                }
-            }
-        }
-        if (combo.skill.charge)
-            ++eff;
-        else
-            eff = ipt;
-        if (ed < 0 || eff > button_UB)
-        {
-            ii = -1;
-            return std::make_pair(-1, -1);
-        }
-
-        if (right_input(st, combo, thres))
-            return std::make_pair(eff, ed);
-        else
-            return std::make_pair(-1, -1);
-    }
-
-    bool right_input(int st, Combo &combo, int thres)
-    {
-        if (combo.skill.directions.size() > 1)
-        {
-            bool flag = shows[st].direction == combo.skill.directions.back() ? true : false;
-            int kk = combo.skill.directions.size() - 1;
-            for (int jj = st - 1, ipt_prev = 0, ipt_now = 0; kk >= 0, jj >= 0; --jj)
-            {
-                if (flag && shows[jj].direction != combo.skill.directions[kk])
-                {
-                    --kk;
-                    ipt_prev = ipt_now;
-                }
-                ipt_now += shows[jj].duration;
-                if (ipt_now - ipt_prev > thres)
-                    break;
-                if (kk >= 0)
-                    flag = shows[jj].direction == combo.skill.directions[kk] ? true : false;
-                if (flag && jj == 0)
-                    --kk;
-            }
-            if (kk >= 0)
-                return false;
-        }
-        else
-        {
-            if (combo.skill.directions.front() != Direction::n && shows[st].direction != combo.skill.directions.front())
-                return false;
-        }
-        return true;
+        return skills[type].charge ? end : start; 
     }
 };
+
+std::deque<SKILL> INFORCE::skills;
+std::deque<int> INFORCE::combo_acum_hits, INFORCE::combo_acum_damages;
+
+struct MARKER
+{
+    double start;
+    double end;
+    int type;
+};
+
+
+
+std::deque<std::deque<double>> extract(std::deque<INFORCE> &inforces, std::deque<std::deque<MARKER>> &markerss, double radius_lower, double radius_upper)
+{
+    std::deque<std::deque<double>> inputss;
+    std::vector<int> midxs(markerss.size(), 0);
+    for (int s = 0; s < inforces.size(); ++s)
+    {
+        if (!std::binary_search(inforces[s].types.begin(), inforces[s].types.end(), 0))
+            continue;
+        for (int i = s, type = 0; i <= inforces.size(); ++i)
+        {
+            bool correct_type = type == 0 || (i < inforces.size() && std::binary_search(inforces[i].types.begin(), inforces[i].types.end(), type));
+            bool allinmarker = true;
+            if (correct_type)
+            {
+                for (int j = 0; j < markerss.size(); ++j)
+                {
+                    for (; midxs[j] < markerss[j].size() && markerss[j][midxs[j]].end + radius_upper < inforces[i].end; ++midxs[j])
+                        ;
+                    bool inmarker = false;
+                    for (int k = midxs[j]; k < markerss[j].size() && markerss[j][k].start - radius_lower <= inforces[i].start; ++k)
+                        if (markerss[j][k].type == type)
+                        {
+                            inmarker = true;
+                            break;
+                        }
+                    if (!inmarker)
+                    {
+                        allinmarker = false;
+                        break;
+                    }
+                }
+            }
+            if (correct_type && allinmarker)
+                ++type;
+            else if (type > 1 || (type == 1 && correct_type))
+            {
+                inputss.emplace_back();
+                if (correct_type)
+                    inputss.back().push_front(inforces[i - 1].get_happen(type - 1) - inforces[i].get_happen(type));
+                --type;
+                for (int j = i - 1; type > 0; --type, --j)
+                    inputss.back().push_front(inforces[j].get_happen(type) - inforces[j - 1].get_happen(type - 1));
+                break;
+            }
+        }
+    }
+    return inputss;
+}
+
+void record()
+{
+    /* record directions */;
+    /* record buttons */;
+    /* record is_reds */;
+    /* record frames */;
+    /* record acum_hits */;
+    /* record acum_damages */;
+}
+
+void recognize()
+{
+    /* record directions */;
+    /* record buttons */;
+    /* record is_reds */;
+    /* record frames */;
+    /* record acum_hits */;
+    /* record acum_damages */;
+}
+
+std::deque<MARKER> types2markers(std::deque<int> &types)
+{
+    std::deque<MARKER> markers;
+    for (int i = 1; i < types.size() - 1; ++i)
+    {
+        if (types[i-1] != types[i])
+        {
+            markers.emplace_back();
+            markers.back().type = types[i];
+            markers.back().start = i;
+        }
+        if (types[i] != types[i+1])
+            markers.back().end = i;
+    }
+    markers.pop_back();
+    return markers;
+}
+
+template <typename T>
+int search_type(T begin, T end, int val)
+{
+    auto lb = lower_bound (begin, end, val);
+    if (lb == end || *lb > val)
+        return -1;
+    else
+        std::distance(begin, lb);
+}
+
+bool is_sub_button(int button1, int button2)
+{
+    while(button1 > 0)
+    {
+        if (button1 % 2 > button2 % 2)
+            return false;
+        button1 = button1 / 2;
+        button2 = button2 / 2;
+    }
+    return true;
+}
+
+bool can_be_type(SKILL &skill, std::deque<DIRECTION> &ndp_directions, BUTTON button, int i)
+{
+    if (skill.button != button)
+        return false;
+    if (skill.directions.size() == 1 && skill.directions.front() != ndp_directions[i])
+        return false;
+    int l = skill.directions.size() - 1;
+    for (int j = i, k = i; l >= 0 && k > 0; --k)
+    {
+        if (j - k > SKILL::chain_inter)
+            return false;
+        if (ndp_directions[k] == skill.directions[l] && (l > 0 && ndp_directions[k-1] == skill.directions[l-1] || l == 0 && ndp_directions[k-1] != ndp_directions[k]))
+        {
+            j = k;
+            --l;
+        }
+    }
+    if (l >= 0)
+        return false;
+    return true;
+}
+
+void notify(std::deque<DIRECTION> &directions, std::deque<BUTTON> &buttons, std::deque<bool> &is_reds, std::deque<int> &frames, std::deque<int> &acum_hits, std::deque<int> &acum_damages)
+{
+    std::deque<DIRECTION> ndp_directions;
+    std::deque<BUTTON> ndp_buttons;
+    std::deque<bool> ndp_is_reds;
+    std::deque<int> hit_types, damage_types;
+    for (int i = 0; i < frames.size(); ++i)
+        if (i == 0 || frames[i-1] != frames[i])
+        {
+            ndp_directions.push_back(directions[i]);
+            ndp_buttons.push_back(buttons[i]);
+            ndp_is_reds.push_back(is_reds[i]);
+            hit_types.push_back(search_type(INFORCE::combo_acum_hits.begin(), INFORCE::combo_acum_hits.end(), acum_hits[i]));
+            damage_types.push_back(search_type(INFORCE::combo_acum_damages.begin(), INFORCE::combo_acum_damages.end(), acum_damages[i]));
+        }
+    std::deque<MARKER> hit_markers = types2markers(hit_types);
+    std::deque<MARKER> damage_markers = types2markers(damage_types);
+
+    std::deque<INFORCE> inforces;
+    std::deque<int> alternative_types = {0};
+    int fi, li;
+    for (fi = 0; fi < ndp_buttons.size() && ndp_buttons[fi] != BUTTON::n && !ndp_is_reds[fi]; ++fi);
+    for (li = ndp_buttons.size() - 1; li >= 0 && ndp_buttons[li] != BUTTON::n && !ndp_is_reds[li]; --li);
+    for (int i = fi, end, next; i <= li; ++i)
+    {
+        if (ndp_is_reds[i] || ndp_buttons[i] == BUTTON::n)
+            continue;
+
+        for (end = i+1; end <= li && is_sub_button(ndp_buttons[i], ndp_buttons[end]); ++end);
+        for (next = end; next <= li && ndp_buttons[next] != BUTTON::n && !ndp_is_reds[next]; ++next);
+
+        inforces.emplace_back();
+        inforces.back().start = i;
+        inforces.back().end = end;
+        for (int type : alternative_types)
+            if (can_be_type(INFORCE::skills[type], ndp_directions, ndp_buttons[i], i))
+                inforces.back().types.push_back(type);
+        
+        alternative_types.resize(1, 0);
+        for (int type : inforces.back().types)
+            if (type + 1 < INFORCE::skills.size())
+                alternative_types.push_back(type + 1);
+
+        i = next - 1;
+    }
+}

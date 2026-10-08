@@ -1,14 +1,10 @@
-#include <list>
-#include <deque>
-#include <vector>
-#include <algorithm>
 #include <set>
-#include <map>
 #include <iostream>
 #include <fstream>
 #include <random>
 #include <functional>
 #include <memory>
+#include "header/Extract.h"
 
 // repeat input
 // merge two data
@@ -231,66 +227,6 @@ struct NODE
                 total_split_length += (val_l - val_ll) + (val_uu - val_u);
             }
         }
-    }
-
-    void record()
-    {
-    }
-
-    void unique()
-    {
-    }
-
-    void notify()
-    {
-    }
-
-    struct INFORCE
-    {
-        double time;
-        int type;
-    };
-
-    std::deque<std::deque<double>> extract(std::deque<INFORCE> inforces, std::deque<std::deque<INFORCE>> markerss, int radius)
-    {
-        std::deque<std::deque<double>> inputss;
-        std::vector<int> midxs(markerss.size(), 0);
-        for (int i = 0, type = 0; i <= inforces.size(); ++i)
-        {
-            bool allinmarker = true;
-            if (i < inforces.size() && inforces[i].type == type)
-            {
-                for (int j = 0; j < markerss.size(); ++j)
-                {
-                    for (; midxs[j] < markerss[j].size() && markerss[j][midxs[j]].time + radius < inforces[i].time; ++midxs[j])
-                        ;
-                    bool inmarker = false;
-                    for (int k = midxs[j]; k < markerss[j].size() && markerss[j][k].time - radius <= inforces[i].time; ++k)
-                        if (markerss[j][k].type == type)
-                        {
-                            inmarker = true;
-                            break;
-                        }
-                    if (!inmarker)
-                    {
-                        allinmarker = false;
-                        break;
-                    }
-                }
-            }
-            if (i < inforces.size() && allinmarker)
-                ++type;
-            else if (type >0 || (i < inforces.size() && inforces[i].type == type))
-            {
-                inputss.emplace_back();
-                if (i < inforces.size() && inforces[i].type == type)
-                    inputss.back().push_front(-inforces[i].time);
-                for (int j = i - 1; j >= i - type; --j)
-                    inputss.back().push_front(inforces[j].time);
-                type = 0;
-            }
-        }
-        return inputss;
     }
 };
 
