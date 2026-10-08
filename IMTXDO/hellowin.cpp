@@ -1,4 +1,4 @@
-#include <windows.h>
+// #include <windows.h>
 #include <vector>
 #include <array>
 #include <string>
@@ -6,6 +6,153 @@
 #include <numeric>
 #include <thread>
 #include "header/Extract.h"
+#include <iostream>
+
+struct Rect
+{
+    int x;
+    int y;
+    int cx;
+    int cy;
+};
+
+struct Color
+{
+    uint8_t red, green, blue;
+    Color();
+    Color(uint8_t red_, uint8_t green_, uint8_t blue_)
+        : red(red_), green(green_), blue(blue_)
+    {
+    }
+
+    bool same_color(Color &color, uint8_t thres)
+    {
+        bool same_red = red >= color.red && red - color.red < thres || red < color.red && color.red - red < thres;
+        bool same_green = green >= color.green && green - color.green < thres || green < color.green && color.green - green < thres;
+        bool same_blue = blue >= color.blue && blue - color.blue < thres || blue < color.blue && color.blue - blue < thres;
+        return same_red && same_green && same_blue;
+    }
+};
+
+struct Axis
+{
+    int x;
+    int y;
+};
+
+struct Matrix
+{
+    std::vector<Color> data;
+    int cx;
+
+    Matrix(int cx_, int cy_)
+        : cx(cx_)
+    {
+        data.resize(cx_ * cy_);
+    }
+
+    Matrix(HBITMAP hBitmap)
+    {
+        BITMAP bitmap;
+        GetObject(hBitmap, sizeof(BITMAP), &bitmap);
+
+        for (int y = 0; y < bitmap.bmHeight; ++y)
+            for (int x = 0; x < bitmap.bmWidth; ++x)
+            {
+                int64_t l = y * bitmap.bmWidthBytes * 3 + x * 3;
+                data.emplace_back(bitmap.bmBits[l], bitmap.bmBits[l + 1], bitmap.bmBits[l + 2]);
+            }
+        cx = bitmap.bmWidth;
+    }
+
+    Color &operator()(int x, int y)
+    {
+        return data[y * cx + x];
+    }
+
+    void stretch(int lcm_cx, int lcm_cy)
+    {
+        int cy = data.size() / cx;
+        if (lcm_cx == cx && lcm_cy == cy)
+            return;
+        int sx = lcm_cx / cx, sy = lcm_cy / cy;
+        Matrix matrix_stretch(lcm_cx * lcm_cy);
+        for (int y = 0; y < cy; ++y)
+            for (int x = 0; x < cx; ++x)
+                for (int j = 0; j < sy; ++j)
+                    for (int i = 0; i < sx; ++i)
+                    {
+                        int ly = y * sy + j, lx = x * sx + i;
+                        matrix_stretch(lx, ly) = this->operator()(x, y);
+                    }
+        swap(matrix_stretch);
+    }
+
+    std::tuple<int, int, double> search(Matrix &matrix, uint8_t thres, Rect rect)
+    {
+        int mcy = matrix.data.size() / matrix.cx;
+        int shx = rect.cx - matrix.cx + 1, shy = rect.cy - mcy + 1;
+        std::vector<double> same_percents(shx * shy);
+
+        double max_same_percents
+        for (int lx = rect.x; lx < rect.x + shx; ++lx)
+            for (int ly = rect.y; ly < rect.y + shy; ++ly)
+            {
+                uint64_t same_num = 0, total_num = 0;
+                for (int x = 0; x < matrix.cx; ++x)
+                    for (int y = 0; y < mcy; ++y)
+                    {
+                        Color &color_target = this->operator()(lx + x, ly + y);
+                        Color &color_search = matrix(x, y);
+                        if (color_search.red + color_search.green + color_search.blue > 0)
+                        {
+                            ++total_num;
+                            if (color_target.same_color(color_search, thres))
+                                ++same_num;
+                        }
+                    }
+                same_percents[ly * shx + lx] = double(same_num) / total_num;
+            }
+    }
+
+    void swap(Matrix &matrix)
+    {
+        data.swap(matrix.data);
+        std::swap(cx, matrix.cx);
+    }
+};
+
+struct TemplateMatch
+{
+    Matrix matrix;
+    int num;
+    std::deque<Axis> axes;
+
+    TemplateMathc(HBITMAP hBitmap, int num_)
+        : matrix(hBitmap), num(num_)
+    {
+    }
+
+    bool search(Matrix &target)
+    {
+        for (Axis axis : axes)
+        {
+            target.submatrix
+        }
+    }
+};
+
+void record_area(const CRect &rect)
+{
+    HDC hScrDC = ::GetDC(NULL);
+    HDC hMemDC = ::CreateCompatibleDC(hScrDC);
+    HBITMAP hBitmap = ::CreateCompatibleBitmap(hScrDC, rect.Width(), rect.Height());
+    HBITMAP hOldbmp = ::SelectObject(hMemDC, hBitmap);
+    ::BitBlt(hMemDC, 0, 0, rect.Width(), rect.Height(), hScrDC, rect.left, rect.top, SRCCOPY);
+    CImage cimage;
+    cimage.Attach(hBitmap);
+    cimage.Save("C:\\test.bmp", Gdiplus::ImageFormatBMP);
+}
 
 LPCTSTR lpApplicationName = TEXT("\"path to app\""), lpCurrentDirectory = TEXT("\"running directory\"");
 std::thread subthread;
@@ -17,87 +164,6 @@ HDC hdcs[5], hdc_target;
 HBITMAP hbitmaps[5];
 std::array<double, 4> positions[5];                    // x, y, cx, cy
 std::vector<std::array<double, 2>> digit_positions[5]; // x, cx
-
-template <class T>
-struct Matrix
-{
-    std::vector<T> data;
-    int cx;
-
-    Matrix();
-
-    Matrix(HBITMAP hBitmap)
-    {
-        BITMAP bitmap;
-        GetObject(hBitmap, sizeof(BITMAP), &bitmap);
-        char *bytes = new char[bitmap.bmHeight * bitmap.bmWidthBytes];
-        GetBitmapBits(hBitmap, bitmap.bmHeight * bitmap.bmWidthBytes, bytes);
-        for (int i = 0; i < bitmap.bmHeight; ++i)
-            for (int j = 0; j < bitmap.bmWidth; ++j)
-            {
-                data.push_back(0);
-                for (int k = 0; k < bitmap.bmBitsPixel; ++k)
-                {
-                    l = i * bitmap.bmWidthBytes * 8 + j * bitmap.bmBitsPixel + k;
-                    if (bytes[l / 8] & 128 >> (l % 8))
-                        data.back() += 1 << k;
-                }
-            }
-        cx = bitmap.bmWidth;
-        delete[] bytes;
-    }
-
-    void stretch(int lcm_cx, int lcm_cy)
-    {
-        int cy = data.size() / cx;
-        if (lcm_cx == cx && lcm_cy == cy)
-            return;
-        int sx = lcm_cx / cx, sy = lcm_cy / cy;
-        std::vector<T> data_stretch(lcm_cx * lcm_cy);
-        for (int i = 0; i < cy; ++i)
-            for (int j = 0; j < cx; ++j)
-                for (int l = 0; l < sy; ++l)
-                    for (int k = (i + l) * lcm_cx * sy + j * sx; k < (i + l) * lcm_cx * sy + (j + 1) * sx; ++k)
-                        data_stretch[k] = data[i * cx + j];
-        data.swap(data_stretch);
-        cx = lcm_cx;
-    }
-
-    double compare(Matrix<T> &matrix, T thres)
-    {
-        if (cx != matrix.cx || data.size() != matrix.data.size())
-        {
-            std::cerr << "bitmap has inconsistent size\n";
-            exit(-1);
-        }
-        uint64_t same_num;
-        uint64_t total_num;
-        for (int i = 0; i < data.size(); ++i)
-            if (data[i] > 0)
-            {
-                ++total_num;
-                if (data[i] <= matrix.data[i] && matrix.data[i] - data[i] <= thres || data[i] > matrix.data[i] && data[i] - matrix.data[i] <= thres)
-                    ++same_num;
-            }
-        return double(same_num) / total_num;
-    }
-
-    Matrix<T> submatrix(int x_start, int x_end, int y_start, int y_end)
-    {
-        Matrix<T> sub_matrix;
-        for (int i = y_start; i < y_end; ++i)
-            for (int j = x_start; j < x_end; ++j)
-                sub_matrix.data.push_back(data[i * cx + j]);
-        sub_matrix.cx = x_end - x_start;
-        return sub_matrix;
-    }
-
-    void swap(Matrix<T> &matrix)
-    {
-        data.swap(matrix.data);
-        std::swap(cx, matrix.cx);
-    }
-};
 
 int find(std::vector<MatUp> &matups, Matrix<T> factor_matrix, double percentage_thres, double thres)
 {
@@ -216,15 +282,14 @@ struct CanonicalMatrices
 CanonicalMatrices<uint64_t> canonicalmatrices;
 
 bool CALLBACK SendWMCloseMsg(HWND hwnd, LPARAM lParam);
-void clear_process(PROCESS_INFORMATION *lppiProcessInfo, int time_out)
-bool startup_process(LPCTSTR lpApplicationName, LPCTSTR lpCurrentDirectory);
+void clear_process(PROCESS_INFORMATION *lppiProcessInfo, int time_out) bool startup_process(LPCTSTR lpApplicationName, LPCTSTR lpCurrentDirectory);
 
 HWND find_main_window(DWORD dwProcessId);
 bool CALLBACK enum_windows_callback(HWND handle, LPARAM lParam);
 bool is_main_window(HWND handle);
 
 void timer_check(double percentage_thres, double thres);
-Show bitmap_identify(std::vector<Matrix<T>> &factor_matrices, double percentage_thres, double thres));
+Show bitmap_identify(std::vector<Matrix<T>> &factor_matrices, double percentage_thres, double thres);
 int digits2val(std::intializer_list<bool> digits);
 Button bools2button(std::intializer_list<bool> bools);
 
@@ -376,7 +441,7 @@ void timer_check(HWND hwnd, double percentage_thres, double thres)
         {
             GetLastInputInfo(&lii);
             QueryPerformanceCounter(&PerformanceCountToc);
-        } while (dwTime == lii.dwTime || PerformanceCountToc - PerformanceCountTic < Frequency/100);
+        } while (dwTime == lii.dwTime || PerformanceCountToc - PerformanceCountTic < Frequency / 100);
         dwTime = lii.dwTime;
         PerformanceCountTic = PerformanceCountToc;
         if (!SendMessage(drawButton, BM_GETCHECK, 0, 0))
@@ -479,8 +544,8 @@ void clear_process(PROCESS_INFORMATION *lppiProcessInfo, int time_out)
     {
         if (result == WAIT_TIMEOUT)
             // Timed out
-        else
-            //an error occurred
+            else
+        // an error occurred
     }
 
     CloseHandle(lppiProcessInfo->hProcess);
@@ -510,16 +575,16 @@ HWND find_main_window(DWORD dwProcessId)
 
 bool CALLBACK enum_windows_callback(HWND handle, LPARAM lParam)
 {
-    std::pair<DWORD, HWND> *pdata = (std::pair<DWORD, HWND>*)lParam;
+    std::pair<DWORD, HWND> *pdata = (std::pair<DWORD, HWND> *)lParam;
     DWORD dwProcessId = 0;
     GetWindowThreadProcessId(handle, &dwProcessId);
     if (pdata->first != dwProcessId || !is_main_window(handle))
         return TRUE;
     pdata->second = handle;
-    return false;   
+    return false;
 }
 
 bool is_main_window(HWND handle)
-{   
+{
     return GetWindow(handle, GW_OWNER) == (HWND)0 && IsWindowVisible(handle);
 }

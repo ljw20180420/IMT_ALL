@@ -5,44 +5,11 @@
 #include <vector>
 #include <algorithm>
 
-enum DIRECTION
-{
-    five = 5,
-    up = 8,
-    down = 2,
-    left = 4,
-    right = 6,
-    upleft = 7,
-    upright = 9,
-    downleft = 1,
-    downright = 3
-};
-
-enum BUTTON
-{
-    n = 0,
-    a = 8,
-    b = 4,
-    c = 2,
-    d = 1,
-    ab = 12,
-    ac = 10,
-    ad = 9,
-    bc = 6,
-    bd = 5,
-    cd = 3,
-    abc = 14,
-    abd = 13,
-    acd = 11,
-    bcd = 7,
-    abcd = 15
-};
-
 struct SKILL
 {
     static int chain_inter;
-    std::deque<DIRECTION> directions;
-    BUTTON button;
+    std::deque<int> directions;
+    int button;
     bool charge;
     int hit;
     int damage;
@@ -197,7 +164,7 @@ bool is_sub_button(int button1, int button2)
     return true;
 }
 
-bool can_be_type(SKILL &skill, std::deque<DIRECTION> &ndp_directions, BUTTON button, int i)
+bool can_be_type(SKILL &skill, std::deque<int> &ndp_directions, int button, int i)
 {
     if (skill.button != button)
         return false;
@@ -219,10 +186,10 @@ bool can_be_type(SKILL &skill, std::deque<DIRECTION> &ndp_directions, BUTTON but
     return true;
 }
 
-void notify(std::deque<DIRECTION> &directions, std::deque<BUTTON> &buttons, std::deque<bool> &is_reds, std::deque<int> &frames, std::deque<int> &acum_hits, std::deque<int> &acum_damages)
+void notify(std::deque<int> &directions, std::deque<int> &buttons, std::deque<bool> &is_reds, std::deque<int> &frames, std::deque<int> &acum_hits, std::deque<int> &acum_damages)
 {
-    std::deque<DIRECTION> ndp_directions;
-    std::deque<BUTTON> ndp_buttons;
+    std::deque<int> ndp_directions;
+    std::deque<int> ndp_buttons;
     std::deque<bool> ndp_is_reds;
     std::deque<int> hit_types, damage_types;
     for (int i = 0; i < frames.size(); ++i)
@@ -240,15 +207,15 @@ void notify(std::deque<DIRECTION> &directions, std::deque<BUTTON> &buttons, std:
     std::deque<INFORCE> inforces;
     std::deque<int> alternative_types = {0};
     int fi, li;
-    for (fi = 0; fi < ndp_buttons.size() && ndp_buttons[fi] != BUTTON::n && !ndp_is_reds[fi]; ++fi);
-    for (li = ndp_buttons.size() - 1; li >= 0 && ndp_buttons[li] != BUTTON::n && !ndp_is_reds[li]; --li);
+    for (fi = 0; fi < ndp_buttons.size() && ndp_buttons[fi] != 0 && !ndp_is_reds[fi]; ++fi);
+    for (li = ndp_buttons.size() - 1; li >= 0 && ndp_buttons[li] != 0 && !ndp_is_reds[li]; --li);
     for (int i = fi, end, next; i <= li; ++i)
     {
-        if (ndp_is_reds[i] || ndp_buttons[i] == BUTTON::n)
+        if (ndp_is_reds[i] || ndp_buttons[i] == 0)
             continue;
 
         for (end = i+1; end <= li && is_sub_button(ndp_buttons[i], ndp_buttons[end]); ++end);
-        for (next = end; next <= li && ndp_buttons[next] != BUTTON::n && !ndp_is_reds[next]; ++next);
+        for (next = end; next <= li && ndp_buttons[next] != 0 && !ndp_is_reds[next]; ++next);
 
         inforces.emplace_back();
         inforces.back().start = i;
