@@ -1,0 +1,96 @@
+\documentclass[10pt]{article}
+\usepackage{geometry}
+\geometry{a4paper,scale=0.8}
+\usepackage{amsmath,amsthm,amssymb,amscd}
+\usepackage{latexsym}
+\usepackage{indentfirst}
+\usepackage{subfigure}
+\usepackage{graphicx}
+\usepackage{extarrows}
+\usepackage{bm}
+\usepackage{multirow}
+\usepackage{algorithm}
+%\usepackage{algorithmic}
+\usepackage{algpseudocode}
+\usepackage{setspace}
+\usepackage{stackengine}
+\usepackage{braket}
+\usepackage{mathtools}
+\usepackage{physics}
+%\usepackage{commath}
+\parskip 1em
+
+\newtheorem{definition}{Definition}
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+\newtheorem{remark}{Remark}
+\newtheorem{condition}{Condition}
+\newtheorem{operation}{Operation}
+\newtheorem{proposition}{Proposition}
+\newtheorem{corollary}{Corollary}
+\newtheorem{assumption}{Assumption}
+\newtheorem{problem}{Problem}
+\renewcommand{\algorithmicrequire}{\textbf{input:}}
+\renewcommand{\algorithmicensure}{\textbf{initialization:}}
+\usepackage{color,xcolor}
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator*{\argsup}{arg\,sup}
+\usepackage{authblk}
+\usepackage{fncylab}
+\labelformat{enumii}{\theenumi(#1)}
+%\date{\today}
+
+
+
+%\bibliographystyle{unsrt}
+%\bibliographystyle{plain}
+\linespread{2}
+
+
+\begin{document}
+
+\title{
+  \bf 
+}
+
+\author[1]{Jingwei Li}
+\affil[1]{Shanghai Center for Systems Biomedicine, Shanghai Jiao Tong University, Shanghai 200240, China, (Email:ljw2017@sjtu.edu.cn).}
+
+
+%\pacs{}
+%
+%\keywords{}
+
+\maketitle
+
+\begin{definition}\label{DefData}
+Define $M>0$ be an integer. Define $\mathcal{L}\coloneqq\set{\qty(d_m)_{m=0}^{M'-1} \mid 0<M'\le M, d_{M'-1}\neq 0, \forall 0\le m < M'-1, d_m > 0}$. Define $\mathcal{T}$ such that $\forall N>0$, $\set{d^{(n)} \mid 0\le n < N}\in \mathcal{T}$ iff $\forall 0\le n_1,n_2,n_3 < N$, $d^{(n_1)}\le d^{(n_2)}\le d^{(n_3)}$ and $d^{(n_1)},d^{(n_3)}>0$ implies that $d^{(n_2)}>0$.
+\end{definition}
+
+\begin{remark}
+$\mathcal{T}$ in Definition \ref{DefData} can be defined equivalently as follows. $\forall \mathcal{D}\in\mathcal{T}$, $\mathcal{D}$ does not contain zero and the absolute values of negative elements in $\mathcal{D}$ do not split (even not strictly) those of positive elements. In other words, the positive values in $\mathcal{D}$ are consecutive when sorting the elements in absolute values.
+\end{remark}
+
+\begin{algorithm}
+\caption{IMT}
+\label{IMT}
+\begin{algorithmic}[1]
+\Require $D\coloneqq\set{d_m^{(n)}\neq 0\le n < N,0 \mid 0\le m < M_n}$.
+\State $D_0\gets \set{d_0^{(n)} \mid 0\le n < N, M_n > 0}$.
+\State Get the partition $\mathcal{E}_0$ of $D_0$ based on the equivalence relationship $\sim_0$ over $D_0$ such that $\forall d_0^n,d_0^{n'}\in D_0$, $d_0^n\sim_0 d_0^{n'}$ iff $d_0^n d_0^{n'}>0$ and $\forall d_0^{n''}\in D_0$, $\min\set{\abs{d_0^n},\abs{d_0^{n'}}}<\abs{d_0^{n''}}<\max\set{\abs{d_0^n},\abs{d_0^{n'}}}$ implies that $d_0^n d_0^{n''}>0$.
+\State $F_0\gets \mathcal{P}(\Phi)\setminus\set{\bot}$.
+\Repeat
+\State $I\gets I+1$.
+\State $F_I\gets \qty(\qty(\bigcup_{\psi\in F_{I-1}}D_{\mathbb{M}(\psi)}^A(\psi))\setminus\mathcal{U}\qty(\bigcup_{i=0}^{I-1}F_i))\land F_0$.
+\Until{$F_I=\emptyset$}
+\State \Return $\mathcal{F}(\Phi)\gets\set{F_i \mid 0\le i< I}$.
+\end{algorithmic}
+\end{algorithm}
+
+
+%\centerline{\bf \bfseries  ---------------------------------------------------------}
+
+\bibliographystyle{unsrt}
+\bibliography{reference}
+
+\end{document}
